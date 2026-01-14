@@ -1,0 +1,6 @@
+**/settings.local.json
+**/*.local.md
+**/mcp.json
+**/sessions/
+**/history/
+
