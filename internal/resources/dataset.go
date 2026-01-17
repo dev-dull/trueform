@@ -557,7 +557,7 @@ func (r *DatasetResource) readDataset(ctx context.Context, id string, model *Dat
 		if value, ok := copies["value"].(string); ok {
 			// Parse string to int
 			var c int64
-			fmt.Sscanf(value, "%d", &c)
+			_, _ = fmt.Sscanf(value, "%d", &c)
 			model.Copies = types.Int64Value(c)
 		}
 	}

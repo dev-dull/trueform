@@ -120,7 +120,7 @@ func (c *Client) Connect(ctx context.Context) error {
 	}
 
 	// Set initial read deadline
-	conn.SetReadDeadline(time.Now().Add(c.timeout))
+	_ = conn.SetReadDeadline(time.Now().Add(c.timeout))
 
 	c.conn = conn
 	c.setConnected(true)
@@ -186,7 +186,7 @@ func (c *Client) Call(ctx context.Context, method string, params interface{}, re
 
 	// Send request with write deadline
 	c.connMu.Lock()
-	c.conn.SetWriteDeadline(time.Now().Add(c.timeout))
+	_ = c.conn.SetWriteDeadline(time.Now().Add(c.timeout))
 	err := c.conn.WriteJSON(req)
 	c.connMu.Unlock()
 
@@ -250,7 +250,7 @@ func (c *Client) readResponses() {
 					// Refresh deadline and continue
 					c.connMu.Lock()
 					if c.conn != nil {
-						c.conn.SetReadDeadline(time.Now().Add(c.timeout))
+						_ = c.conn.SetReadDeadline(time.Now().Add(c.timeout))
 					}
 					c.connMu.Unlock()
 					continue
@@ -265,7 +265,7 @@ func (c *Client) readResponses() {
 		// Successfully read a response - refresh deadline for next read
 		c.connMu.Lock()
 		if c.conn != nil {
-			c.conn.SetReadDeadline(time.Now().Add(c.timeout))
+			_ = c.conn.SetReadDeadline(time.Now().Add(c.timeout))
 		}
 		c.connMu.Unlock()
 
@@ -273,7 +273,6 @@ func (c *Client) readResponses() {
 		c.responsesMu.Lock()
 		if ch, ok := c.responses[resp.ID]; ok {
 			ch <- &resp
-		} else {
 		}
 		c.responsesMu.Unlock()
 	}
@@ -384,14 +383,9 @@ func (c *Client) WaitForJob(ctx context.Context, jobID int64, timeout time.Durat
 			return nil, fmt.Errorf("timeout waiting for job %d to complete", jobID)
 		}
 
-		var job map[string]interface{}
-		err := c.Call(ctx, "core.get_jobs", []interface{}{
-			[][]interface{}{{"id", "=", jobID}},
-		}, &job)
-
 		// The API returns an array, get the first element
 		var jobs []map[string]interface{}
-		err = c.Call(ctx, "core.get_jobs", []interface{}{
+		err := c.Call(ctx, "core.get_jobs", []interface{}{
 			[][]interface{}{{"id", "=", jobID}},
 		}, &jobs)
 		if err != nil {
@@ -402,7 +396,7 @@ func (c *Client) WaitForJob(ctx context.Context, jobID int64, timeout time.Durat
 			return nil, fmt.Errorf("job %d not found", jobID)
 		}
 
-		job = jobs[0]
+		job := jobs[0]
 		state, _ := job["state"].(string)
 
 		switch state {

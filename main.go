@@ -9,11 +9,8 @@ import (
 	"github.com/trueform/terraform-provider-trueform/internal/provider"
 )
 
-var (
-	// These variables are set via ldflags by GoReleaser at build time
-	version string = "dev"
-	commit  string = "none"
-)
+// version is set via ldflags by GoReleaser at build time
+var version string = "dev"
 
 func main() {
 	var debug bool

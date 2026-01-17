@@ -374,8 +374,8 @@ func (r *VMResource) Delete(ctx context.Context, req resource.DeleteRequest, res
 		return
 	}
 
-	// Stop the VM first if running
-	r.client.Call(ctx, "vm.stop", []interface{}{state.ID.ValueInt64()}, nil)
+	// Stop the VM first if running (ignore error - VM may already be stopped)
+	_ = r.client.Call(ctx, "vm.stop", []interface{}{state.ID.ValueInt64()}, nil)
 
 	err := r.client.Delete(ctx, "vm", state.ID.ValueInt64())
 	if err != nil {
