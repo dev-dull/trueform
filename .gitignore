@@ -10,3 +10,7 @@ local-test/
 test-resources/terraform.tfvars
 **/*.tfstate*
 cmd/
+
+# GPG keys
+*.asc
+*.gpg
