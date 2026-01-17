@@ -10,7 +10,9 @@ import (
 )
 
 var (
+	// These variables are set via ldflags by GoReleaser at build time
 	version string = "dev"
+	commit  string = "none"
 )
 
 func main() {

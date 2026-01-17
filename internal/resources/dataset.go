@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -105,22 +106,22 @@ func (r *DatasetResource) Schema(ctx context.Context, req resource.SchemaRequest
 				Optional:    true,
 			},
 			"compression": schema.StringAttribute{
-				Description: "Compression algorithm (off, lz4, gzip, zstd, etc.).",
+				Description: "Compression algorithm (OFF, LZ4, GZIP, ZSTD, etc.).",
 				Optional:    true,
 				Computed:    true,
-				Default:     stringdefault.StaticString("lz4"),
+				Default:     stringdefault.StaticString("LZ4"),
 			},
 			"atime": schema.StringAttribute{
-				Description: "Access time update setting (on, off).",
+				Description: "Access time update setting (ON, OFF).",
 				Optional:    true,
 				Computed:    true,
-				Default:     stringdefault.StaticString("off"),
+				Default:     stringdefault.StaticString("OFF"),
 			},
 			"deduplication": schema.StringAttribute{
-				Description: "Deduplication setting (on, off, verify).",
+				Description: "Deduplication setting (ON, OFF, VERIFY).",
 				Optional:    true,
 				Computed:    true,
-				Default:     stringdefault.StaticString("off"),
+				Default:     stringdefault.StaticString("OFF"),
 			},
 			"quota": schema.Int64Attribute{
 				Description: "Quota in bytes (0 for unlimited).",
@@ -149,18 +150,20 @@ func (r *DatasetResource) Schema(ctx context.Context, req resource.SchemaRequest
 			"copies": schema.Int64Attribute{
 				Description: "Number of copies to store.",
 				Optional:    true,
+				Computed:    true,
+				Default:     int64default.StaticInt64(1),
 			},
 			"snapdir": schema.StringAttribute{
-				Description: "Snapshot directory visibility (visible, hidden).",
+				Description: "Snapshot directory visibility (VISIBLE, HIDDEN, DISABLED).",
 				Optional:    true,
 				Computed:    true,
-				Default:     stringdefault.StaticString("hidden"),
+				Default:     stringdefault.StaticString("HIDDEN"),
 			},
 			"readonly": schema.StringAttribute{
-				Description: "Read-only setting (on, off).",
+				Description: "Read-only setting (ON, OFF).",
 				Optional:    true,
 				Computed:    true,
-				Default:     stringdefault.StaticString("off"),
+				Default:     stringdefault.StaticString("OFF"),
 			},
 			"recordsize": schema.StringAttribute{
 				Description: "Record size (e.g., 128K, 1M).",
@@ -172,7 +175,7 @@ func (r *DatasetResource) Schema(ctx context.Context, req resource.SchemaRequest
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.RequiresReplaceIfConfigured(),
 				},
 			},
 			"aclmode": schema.StringAttribute{
@@ -186,10 +189,10 @@ func (r *DatasetResource) Schema(ctx context.Context, req resource.SchemaRequest
 				Computed:    true,
 			},
 			"share_type": schema.StringAttribute{
-				Description: "Share type (generic, smb, apps).",
+				Description: "Share type (GENERIC, SMB, NFS, MULTIPROTOCOL, APPS).",
 				Optional:    true,
 				Computed:    true,
-				Default:     stringdefault.StaticString("generic"),
+				Default:     stringdefault.StaticString("GENERIC"),
 			},
 			"managed_by": schema.StringAttribute{
 				Description: "What manages this dataset.",
@@ -293,25 +296,25 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 	if !plan.Copies.IsNull() {
 		createData["copies"] = plan.Copies.ValueInt64()
 	}
-	if !plan.Snapdir.IsNull() {
+	if !plan.Snapdir.IsNull() && !plan.Snapdir.IsUnknown() {
 		createData["snapdir"] = plan.Snapdir.ValueString()
 	}
-	if !plan.Readonly.IsNull() {
+	if !plan.Readonly.IsNull() && !plan.Readonly.IsUnknown() {
 		createData["readonly"] = plan.Readonly.ValueString()
 	}
-	if !plan.Recordsize.IsNull() {
+	if !plan.Recordsize.IsNull() && !plan.Recordsize.IsUnknown() {
 		createData["recordsize"] = plan.Recordsize.ValueString()
 	}
-	if !plan.Casesensitivity.IsNull() {
+	if !plan.Casesensitivity.IsNull() && !plan.Casesensitivity.IsUnknown() {
 		createData["casesensitivity"] = plan.Casesensitivity.ValueString()
 	}
-	if !plan.Aclmode.IsNull() {
+	if !plan.Aclmode.IsNull() && !plan.Aclmode.IsUnknown() {
 		createData["aclmode"] = plan.Aclmode.ValueString()
 	}
-	if !plan.Acltype.IsNull() {
+	if !plan.Acltype.IsNull() && !plan.Acltype.IsUnknown() {
 		createData["acltype"] = plan.Acltype.ValueString()
 	}
-	if !plan.ShareType.IsNull() {
+	if !plan.ShareType.IsNull() && !plan.ShareType.IsUnknown() {
 		createData["share_type"] = plan.ShareType.ValueString()
 	}
 
@@ -426,16 +429,17 @@ func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest
 	if !plan.Readonly.Equal(state.Readonly) {
 		updateData["readonly"] = plan.Readonly.ValueString()
 	}
-	if !plan.Recordsize.Equal(state.Recordsize) {
+	// Only update computed fields if explicitly configured with valid values
+	if !plan.Recordsize.Equal(state.Recordsize) && !plan.Recordsize.IsNull() && !plan.Recordsize.IsUnknown() && plan.Recordsize.ValueString() != "" {
 		updateData["recordsize"] = plan.Recordsize.ValueString()
 	}
-	if !plan.Aclmode.Equal(state.Aclmode) {
+	if !plan.Aclmode.Equal(state.Aclmode) && !plan.Aclmode.IsNull() && !plan.Aclmode.IsUnknown() && plan.Aclmode.ValueString() != "" {
 		updateData["aclmode"] = plan.Aclmode.ValueString()
 	}
-	if !plan.Acltype.Equal(state.Acltype) {
+	if !plan.Acltype.Equal(state.Acltype) && !plan.Acltype.IsNull() && !plan.Acltype.IsUnknown() && plan.Acltype.ValueString() != "" {
 		updateData["acltype"] = plan.Acltype.ValueString()
 	}
-	if !plan.ShareType.Equal(state.ShareType) {
+	if !plan.ShareType.Equal(state.ShareType) && !plan.ShareType.IsNull() && !plan.ShareType.IsUnknown() && plan.ShareType.ValueString() != "" {
 		updateData["share_type"] = plan.ShareType.ValueString()
 	}
 
@@ -588,9 +592,13 @@ func (r *DatasetResource) readDataset(ctx context.Context, id string, model *Dat
 		}
 	}
 	if managedBy, ok := result["managedby"].(map[string]interface{}); ok {
-		if value, ok := managedBy["value"].(string); ok {
+		if value, ok := managedBy["value"].(string); ok && value != "" {
 			model.ManagedBy = types.StringValue(value)
+		} else {
+			model.ManagedBy = types.StringNull()
 		}
+	} else {
+		model.ManagedBy = types.StringNull()
 	}
 	if mountpoint, ok := result["mountpoint"].(string); ok {
 		model.Mountpoint = types.StringValue(mountpoint)
@@ -598,8 +606,10 @@ func (r *DatasetResource) readDataset(ctx context.Context, id string, model *Dat
 	if encrypted, ok := result["encrypted"].(bool); ok {
 		model.Encrypted = types.BoolValue(encrypted)
 	}
-	if encryptionRoot, ok := result["encryption_root"].(string); ok {
+	if encryptionRoot, ok := result["encryption_root"].(string); ok && encryptionRoot != "" {
 		model.EncryptionRoot = types.StringValue(encryptionRoot)
+	} else {
+		model.EncryptionRoot = types.StringNull()
 	}
 	if keyLoaded, ok := result["key_loaded"].(bool); ok {
 		model.KeyLoaded = types.BoolValue(keyLoaded)

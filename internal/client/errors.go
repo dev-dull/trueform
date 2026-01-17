@@ -2,6 +2,7 @@ package client
 
 import (
 	"fmt"
+	"strings"
 )
 
 // Error codes from TrueNAS API
@@ -35,7 +36,16 @@ func (e *APIError) Error() string {
 
 // IsNotFound returns true if the error indicates a resource was not found
 func (e *APIError) IsNotFound() bool {
-	return e.Code == ErrCodeNotFound
+	if e.Code == ErrCodeNotFound {
+		return true
+	}
+	// TrueNAS Scale 25 returns InvalidParams with InstanceNotFound in details
+	if e.Code == ErrCodeInvalidParams {
+		if strings.Contains(e.Details, "InstanceNotFound") || strings.Contains(e.Details, "does not exist") {
+			return true
+		}
+	}
+	return false
 }
 
 // IsAuthError returns true if the error is an authentication error

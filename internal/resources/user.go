@@ -32,26 +32,27 @@ type UserResource struct {
 }
 
 type UserResourceModel struct {
-	ID             types.Int64  `tfsdk:"id"`
-	UID            types.Int64  `tfsdk:"uid"`
-	Username       types.String `tfsdk:"username"`
-	FullName       types.String `tfsdk:"full_name"`
-	Email          types.String `tfsdk:"email"`
-	Password       types.String `tfsdk:"password"`
-	PasswordDisabled types.Bool `tfsdk:"password_disabled"`
-	Group          types.Int64  `tfsdk:"group"`
-	Groups         types.List   `tfsdk:"groups"`
-	Home           types.String `tfsdk:"home"`
-	HomeMode       types.String `tfsdk:"home_mode"`
-	HomeCreate     types.Bool   `tfsdk:"home_create"`
-	Shell          types.String `tfsdk:"shell"`
-	SSHPubKey      types.String `tfsdk:"sshpubkey"`
-	Locked         types.Bool   `tfsdk:"locked"`
-	SMB            types.Bool   `tfsdk:"smb"`
-	Sudo           types.Bool   `tfsdk:"sudo"`
-	SudoNopasswd   types.Bool   `tfsdk:"sudo_nopasswd"`
-	SudoCommands   types.List   `tfsdk:"sudo_commands"`
-	Builtin        types.Bool   `tfsdk:"builtin"`
+	ID               types.Int64  `tfsdk:"id"`
+	UID              types.Int64  `tfsdk:"uid"`
+	Username         types.String `tfsdk:"username"`
+	FullName         types.String `tfsdk:"full_name"`
+	Email            types.String `tfsdk:"email"`
+	Password         types.String `tfsdk:"password"`
+	PasswordDisabled types.Bool   `tfsdk:"password_disabled"`
+	Group            types.Int64  `tfsdk:"group"`
+	GroupCreate      types.Bool   `tfsdk:"group_create"`
+	Groups           types.List   `tfsdk:"groups"`
+	Home             types.String `tfsdk:"home"`
+	HomeMode         types.String `tfsdk:"home_mode"`
+	HomeCreate       types.Bool   `tfsdk:"home_create"`
+	Shell            types.String `tfsdk:"shell"`
+	SSHPubKey        types.String `tfsdk:"sshpubkey"`
+	Locked           types.Bool   `tfsdk:"locked"`
+	SMB              types.Bool   `tfsdk:"smb"`
+	Sudo             types.Bool   `tfsdk:"sudo"`
+	SudoNopasswd     types.Bool   `tfsdk:"sudo_nopasswd"`
+	SudoCommands     types.List   `tfsdk:"sudo_commands"`
+	Builtin          types.Bool   `tfsdk:"builtin"`
 }
 
 func (r *UserResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -102,16 +103,22 @@ func (r *UserResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 				Optional:    true,
 				Computed:    true,
 			},
+			"group_create": schema.BoolAttribute{
+				Description: "Create a new group with the same name as the user.",
+				Optional:    true,
+				Computed:    true,
+				Default:     booldefault.StaticBool(true),
+			},
 			"groups": schema.ListAttribute{
 				Description: "List of auxiliary group IDs.",
 				Optional:    true,
 				ElementType: types.Int64Type,
 			},
 			"home": schema.StringAttribute{
-				Description: "Home directory path.",
+				Description: "Home directory path. Must start with /mnt or be /var/empty.",
 				Optional:    true,
 				Computed:    true,
-				Default:     stringdefault.StaticString("/nonexistent"),
+				Default:     stringdefault.StaticString("/var/empty"),
 			},
 			"home_mode": schema.StringAttribute{
 				Description: "Home directory permissions.",
@@ -203,11 +210,10 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 		"password_disabled": plan.PasswordDisabled.ValueBool(),
 		"locked":            plan.Locked.ValueBool(),
 		"smb":               plan.SMB.ValueBool(),
-		"sudo":              plan.Sudo.ValueBool(),
-		"sudo_nopasswd":     plan.SudoNopasswd.ValueBool(),
 	}
 
-	if !plan.UID.IsNull() {
+	// Only set uid if explicitly provided (non-null and non-zero)
+	if !plan.UID.IsNull() && !plan.UID.IsUnknown() && plan.UID.ValueInt64() != 0 {
 		createData["uid"] = plan.UID.ValueInt64()
 	}
 	if !plan.FullName.IsNull() {
@@ -219,9 +225,11 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 	if !plan.Password.IsNull() && plan.Password.ValueString() != "" {
 		createData["password"] = plan.Password.ValueString()
 	}
-	if !plan.Group.IsNull() {
+	if !plan.Group.IsNull() && plan.Group.ValueInt64() != 0 {
 		createData["group"] = plan.Group.ValueInt64()
 	}
+	// Use group_create to create a new group for the user (defaults to true)
+	createData["group_create"] = plan.GroupCreate.ValueBool()
 	if !plan.Groups.IsNull() {
 		var groups []int64
 		diags = plan.Groups.ElementsAs(ctx, &groups, false)
@@ -238,14 +246,6 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 	}
 	if !plan.SSHPubKey.IsNull() {
 		createData["sshpubkey"] = plan.SSHPubKey.ValueString()
-	}
-	if !plan.SudoCommands.IsNull() {
-		var commands []string
-		diags = plan.SudoCommands.ElementsAs(ctx, &commands, false)
-		resp.Diagnostics.Append(diags...)
-		if !resp.Diagnostics.HasError() {
-			createData["sudo_commands"] = commands
-		}
 	}
 
 	var result map[string]interface{}
@@ -323,16 +323,18 @@ func (r *UserResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	if !plan.PasswordDisabled.Equal(state.PasswordDisabled) {
 		updateData["password_disabled"] = plan.PasswordDisabled.ValueBool()
 	}
-	if !plan.Group.Equal(state.Group) {
+	// Only update group if explicitly set to a valid non-zero value
+	if !plan.Group.Equal(state.Group) && !plan.Group.IsNull() && !plan.Group.IsUnknown() && plan.Group.ValueInt64() > 0 {
 		updateData["group"] = plan.Group.ValueInt64()
 	}
-	if !plan.Groups.Equal(state.Groups) {
+	// Only update groups if explicitly set
+	if !plan.Groups.Equal(state.Groups) && !plan.Groups.IsNull() && !plan.Groups.IsUnknown() {
 		var groups []int64
-		if !plan.Groups.IsNull() {
-			diags = plan.Groups.ElementsAs(ctx, &groups, false)
-			resp.Diagnostics.Append(diags...)
+		diags = plan.Groups.ElementsAs(ctx, &groups, false)
+		resp.Diagnostics.Append(diags...)
+		if len(groups) > 0 {
+			updateData["groups"] = groups
 		}
-		updateData["groups"] = groups
 	}
 	if !plan.Home.Equal(state.Home) {
 		updateData["home"] = plan.Home.ValueString()
@@ -355,20 +357,6 @@ func (r *UserResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	}
 	if !plan.SMB.Equal(state.SMB) {
 		updateData["smb"] = plan.SMB.ValueBool()
-	}
-	if !plan.Sudo.Equal(state.Sudo) {
-		updateData["sudo"] = plan.Sudo.ValueBool()
-	}
-	if !plan.SudoNopasswd.Equal(state.SudoNopasswd) {
-		updateData["sudo_nopasswd"] = plan.SudoNopasswd.ValueBool()
-	}
-	if !plan.SudoCommands.Equal(state.SudoCommands) {
-		var commands []string
-		if !plan.SudoCommands.IsNull() {
-			diags = plan.SudoCommands.ElementsAs(ctx, &commands, false)
-			resp.Diagnostics.Append(diags...)
-		}
-		updateData["sudo_commands"] = commands
 	}
 
 	if len(updateData) > 0 {
@@ -441,18 +429,24 @@ func (r *UserResource) readUser(ctx context.Context, id int64, model *UserResour
 			model.Group = types.Int64Value(int64(gid))
 		}
 	}
-	if groups, ok := result["groups"].([]interface{}); ok {
-		groupIDs := make([]int64, len(groups))
-		for i, g := range groups {
+	if groups, ok := result["groups"].([]interface{}); ok && len(groups) > 0 {
+		var groupIDs []int64
+		for _, g := range groups {
 			if gmap, ok := g.(map[string]interface{}); ok {
 				if gid, ok := gmap["id"].(float64); ok {
-					groupIDs[i] = int64(gid)
+					// Filter out invalid group IDs (0 or negative)
+					if int64(gid) > 0 {
+						groupIDs = append(groupIDs, int64(gid))
+					}
 				}
 			}
 		}
-		groupValues, diags := types.ListValueFrom(ctx, types.Int64Type, groupIDs)
-		if !diags.HasError() {
-			model.Groups = groupValues
+		// Only set groups if there are valid group IDs
+		if len(groupIDs) > 0 {
+			groupValues, diags := types.ListValueFrom(ctx, types.Int64Type, groupIDs)
+			if !diags.HasError() {
+				model.Groups = groupValues
+			}
 		}
 	}
 	if home, ok := result["home"].(string); ok {
@@ -476,7 +470,7 @@ func (r *UserResource) readUser(ctx context.Context, id int64, model *UserResour
 	if sudoNopasswd, ok := result["sudo_nopasswd"].(bool); ok {
 		model.SudoNopasswd = types.BoolValue(sudoNopasswd)
 	}
-	if sudoCommands, ok := result["sudo_commands"].([]interface{}); ok {
+	if sudoCommands, ok := result["sudo_commands"].([]interface{}); ok && len(sudoCommands) > 0 {
 		commands := make([]string, len(sudoCommands))
 		for i, cmd := range sudoCommands {
 			commands[i] = cmd.(string)

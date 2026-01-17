@@ -117,11 +117,11 @@ func (r *ISCSIPortalResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
+	// TrueNAS Scale 25 only accepts IP in listen configuration, port is implicit (3260)
 	listen := make([]map[string]interface{}, len(listenItems))
 	for i, item := range listenItems {
 		listen[i] = map[string]interface{}{
-			"ip":   item.IP.ValueString(),
-			"port": item.Port.ValueInt64(),
+			"ip": item.IP.ValueString(),
 		}
 	}
 
@@ -199,11 +199,11 @@ func (r *ISCSIPortalResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
+	// TrueNAS Scale 25 only accepts IP in listen configuration, port is implicit (3260)
 	listen := make([]map[string]interface{}, len(listenItems))
 	for i, item := range listenItems {
 		listen[i] = map[string]interface{}{
-			"ip":   item.IP.ValueString(),
-			"port": item.Port.ValueInt64(),
+			"ip": item.IP.ValueString(),
 		}
 	}
 

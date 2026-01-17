@@ -307,7 +307,7 @@ func (r *SnapshotResource) readSnapshot(ctx context.Context, id string, model *S
 		model.Name = types.StringValue(parts[1])
 	}
 
-	if holds, ok := result["holds"].([]interface{}); ok {
+	if holds, ok := result["holds"].([]interface{}); ok && len(holds) > 0 {
 		holdsList := make([]string, len(holds))
 		for i, h := range holds {
 			holdsList[i] = h.(string)
@@ -316,6 +316,10 @@ func (r *SnapshotResource) readSnapshot(ctx context.Context, id string, model *S
 		if !diags.HasError() {
 			model.Holds = holdValues
 		}
+	} else {
+		// Set empty list when no holds
+		emptyHolds, _ := types.ListValueFrom(ctx, types.StringType, []string{})
+		model.Holds = emptyHolds
 	}
 
 	if properties, ok := result["properties"].(map[string]interface{}); ok {
@@ -330,10 +334,21 @@ func (r *SnapshotResource) readSnapshot(ctx context.Context, id string, model *S
 			}
 		}
 		if creation, ok := properties["creation"].(map[string]interface{}); ok {
+			// creation.parsed can be either a string or a timestamp
 			if parsed, ok := creation["parsed"].(string); ok {
 				model.CreationTime = types.StringValue(parsed)
+			} else if rawValue, ok := creation["rawvalue"].(string); ok {
+				model.CreationTime = types.StringValue(rawValue)
+			} else if value, ok := creation["value"].(string); ok {
+				model.CreationTime = types.StringValue(value)
+			} else {
+				model.CreationTime = types.StringNull()
 			}
+		} else {
+			model.CreationTime = types.StringNull()
 		}
+	} else {
+		model.CreationTime = types.StringNull()
 	}
 
 	return nil

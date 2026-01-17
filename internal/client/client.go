@@ -373,3 +373,73 @@ func (c *Client) DeleteWithOptions(ctx context.Context, resource string, id inte
 	method := resource + ".delete"
 	return c.Call(ctx, method, []interface{}{id, options}, nil)
 }
+
+// WaitForJob waits for a TrueNAS job to complete and returns the result
+func (c *Client) WaitForJob(ctx context.Context, jobID int64, timeout time.Duration) (map[string]interface{}, error) {
+	deadline := time.Now().Add(timeout)
+	pollInterval := 2 * time.Second
+
+	for {
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("timeout waiting for job %d to complete", jobID)
+		}
+
+		var job map[string]interface{}
+		err := c.Call(ctx, "core.get_jobs", []interface{}{
+			[][]interface{}{{"id", "=", jobID}},
+		}, &job)
+
+		// The API returns an array, get the first element
+		var jobs []map[string]interface{}
+		err = c.Call(ctx, "core.get_jobs", []interface{}{
+			[][]interface{}{{"id", "=", jobID}},
+		}, &jobs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query job status: %w", err)
+		}
+
+		if len(jobs) == 0 {
+			return nil, fmt.Errorf("job %d not found", jobID)
+		}
+
+		job = jobs[0]
+		state, _ := job["state"].(string)
+
+		switch state {
+		case "SUCCESS":
+			if result, ok := job["result"].(map[string]interface{}); ok {
+				return result, nil
+			}
+			// Some jobs return simple values or nil
+			return job, nil
+		case "FAILED":
+			errMsg := "job failed"
+			if e, ok := job["error"].(string); ok {
+				errMsg = e
+			}
+			return nil, fmt.Errorf("job %d failed: %s", jobID, errMsg)
+		case "ABORTED":
+			return nil, fmt.Errorf("job %d was aborted", jobID)
+		default:
+			// Job still running, wait and poll again
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(pollInterval):
+			}
+		}
+	}
+}
+
+// CreateWithJob creates a resource and waits for the job to complete
+func (c *Client) CreateWithJob(ctx context.Context, resource string, data interface{}, timeout time.Duration) (map[string]interface{}, error) {
+	method := resource + ".create"
+
+	var jobID float64
+	err := c.Call(ctx, method, []interface{}{data}, &jobID)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.WaitForJob(ctx, int64(jobID), timeout)
+}

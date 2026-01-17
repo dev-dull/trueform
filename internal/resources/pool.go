@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -93,10 +94,10 @@ func (r *PoolResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 				},
 			},
 			"deduplication": schema.StringAttribute{
-				Description: "Deduplication setting (on, off, verify).",
+				Description: "Deduplication setting (ON, OFF, VERIFY).",
 				Optional:    true,
 				Computed:    true,
-				Default:     stringdefault.StaticString("off"),
+				Default:     stringdefault.StaticString("OFF"),
 			},
 			"checksum": schema.StringAttribute{
 				Description: "Checksum algorithm.",
@@ -221,6 +222,8 @@ func (r *PoolResource) Create(ctx context.Context, req resource.CreateRequest, r
 	createData := map[string]interface{}{
 		"name":     plan.Name.ValueString(),
 		"topology": topology,
+		// Allow duplicate serials for VMs with virtual disks that don't have unique serials
+		"allow_duplicate_serials": true,
 	}
 
 	if !plan.Encryption.IsNull() && plan.Encryption.ValueBool() {
@@ -232,8 +235,8 @@ func (r *PoolResource) Create(ctx context.Context, req resource.CreateRequest, r
 		createData["deduplication"] = plan.Deduplication.ValueString()
 	}
 
-	var result map[string]interface{}
-	err := r.client.Create(ctx, "pool", createData, &result)
+	// Pool creation is a long-running job, wait for it to complete
+	result, err := r.client.CreateWithJob(ctx, "pool", createData, 10*time.Minute)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Creating Pool",
@@ -242,8 +245,31 @@ func (r *PoolResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	// Get the created pool to populate computed fields
-	poolID := int64(result["id"].(float64))
+	// Get the pool ID from the result
+	var poolID int64
+	if id, ok := result["id"].(float64); ok {
+		poolID = int64(id)
+	} else if id, ok := result["result"].(map[string]interface{}); ok {
+		if pid, ok := id["id"].(float64); ok {
+			poolID = int64(pid)
+		}
+	}
+
+	if poolID == 0 {
+		// If we can't get the ID from result, query by name
+		var pools []map[string]interface{}
+		queryErr := r.client.Call(ctx, "pool.query", []interface{}{
+			[][]interface{}{{"name", "=", plan.Name.ValueString()}},
+		}, &pools)
+		if queryErr != nil || len(pools) == 0 {
+			resp.Diagnostics.AddError(
+				"Error Creating Pool",
+				"Pool was created but could not determine its ID",
+			)
+			return
+		}
+		poolID = int64(pools[0]["id"].(float64))
+	}
 	if err := r.readPool(ctx, poolID, &plan); err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading Pool",

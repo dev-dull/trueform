@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -65,7 +67,9 @@ func (r *ShareNFSResource) Schema(ctx context.Context, req resource.SchemaReques
 			"aliases": schema.ListAttribute{
 				Description: "List of aliases for the share.",
 				Optional:    true,
+				Computed:    true,
 				ElementType: types.StringType,
+				Default:     listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 			},
 			"comment": schema.StringAttribute{
 				Description: "Comment for the share.",
@@ -85,7 +89,9 @@ func (r *ShareNFSResource) Schema(ctx context.Context, req resource.SchemaReques
 			"hosts": schema.ListAttribute{
 				Description: "List of authorized hosts.",
 				Optional:    true,
+				Computed:    true,
 				ElementType: types.StringType,
+				Default:     listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 			},
 			"maproot_user": schema.StringAttribute{
 				Description: "Map root user to this user.",
@@ -114,7 +120,9 @@ func (r *ShareNFSResource) Schema(ctx context.Context, req resource.SchemaReques
 			"security": schema.ListAttribute{
 				Description: "Security flavors (sys, krb5, krb5i, krb5p).",
 				Optional:    true,
+				Computed:    true,
 				ElementType: types.StringType,
+				Default:     listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 			},
 			"ro": schema.BoolAttribute{
 				Description: "Export share as read-only.",
@@ -281,7 +289,10 @@ func (r *ShareNFSResource) Update(ctx context.Context, req resource.UpdateReques
 		"id": state.ID.ValueInt64(),
 	})
 
-	updateData := map[string]interface{}{}
+	updateData := map[string]interface{}{
+		// Always include enabled to prevent TrueNAS from resetting it during updates
+		"enabled": plan.Enabled.ValueBool(),
+	}
 
 	if !plan.Path.Equal(state.Path) {
 		updateData["path"] = plan.Path.ValueString()
@@ -300,9 +311,6 @@ func (r *ShareNFSResource) Update(ctx context.Context, req resource.UpdateReques
 		} else {
 			updateData["comment"] = plan.Comment.ValueString()
 		}
-	}
-	if !plan.Enabled.Equal(state.Enabled) {
-		updateData["enabled"] = plan.Enabled.ValueBool()
 	}
 	if !plan.Networks.Equal(state.Networks) {
 		var networks []string
