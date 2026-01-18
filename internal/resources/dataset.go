@@ -439,8 +439,12 @@ func (r *DatasetResource) Update(ctx context.Context, req resource.UpdateRequest
 	if !plan.Acltype.Equal(state.Acltype) && !plan.Acltype.IsNull() && !plan.Acltype.IsUnknown() && plan.Acltype.ValueString() != "" {
 		updateData["acltype"] = plan.Acltype.ValueString()
 	}
+	// share_type cannot be updated after dataset creation
 	if !plan.ShareType.Equal(state.ShareType) && !plan.ShareType.IsNull() && !plan.ShareType.IsUnknown() && plan.ShareType.ValueString() != "" {
-		updateData["share_type"] = plan.ShareType.ValueString()
+		resp.Diagnostics.AddWarning(
+			"Cannot Update share_type",
+			"The share_type field can only be set during dataset creation. The current value will be preserved.",
+		)
 	}
 
 	if len(updateData) > 0 {

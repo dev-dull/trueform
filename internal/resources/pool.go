@@ -325,25 +325,13 @@ func (r *PoolResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		"id": state.ID.ValueInt64(),
 	})
 
-	// Pools have limited update capabilities in TrueNAS
-	// Most changes require recreation
-	updateData := map[string]interface{}{}
-
-	if !plan.Checksum.Equal(state.Checksum) {
-		updateData["checksum"] = plan.Checksum.ValueString()
-	}
-
-	if len(updateData) > 0 {
-		var result map[string]interface{}
-		err := r.client.Update(ctx, "pool", state.ID.ValueInt64(), updateData, &result)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error Updating Pool",
-				"Could not update pool: "+err.Error(),
-			)
-			return
-		}
-	}
+	// Pools have very limited update capabilities in TrueNAS
+	// The pool.update API only supports: topology (to add vdevs) and autotrim
+	// Properties like checksum and deduplication are ZFS pool-level properties
+	// that cannot be changed after pool creation
+	//
+	// Since name requires recreation and other properties are set at creation,
+	// we don't need to perform any updates here - just read the current state
 
 	// Read the updated pool
 	if err := r.readPool(ctx, state.ID.ValueInt64(), &plan); err != nil {

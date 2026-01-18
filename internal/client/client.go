@@ -437,3 +437,16 @@ func (c *Client) CreateWithJob(ctx context.Context, resource string, data interf
 
 	return c.WaitForJob(ctx, int64(jobID), timeout)
 }
+
+// UpdateWithJob updates a resource and waits for the job to complete
+func (c *Client) UpdateWithJob(ctx context.Context, resource string, id interface{}, data interface{}, timeout time.Duration) (map[string]interface{}, error) {
+	method := resource + ".update"
+
+	var jobID float64
+	err := c.Call(ctx, method, []interface{}{id, data}, &jobID)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.WaitForJob(ctx, int64(jobID), timeout)
+}

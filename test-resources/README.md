@@ -12,29 +12,35 @@ test-resources/
 │   ├── variables.tf
 │   ├── outputs.tf
 │   └── terraform.tfvars.example
-└── modify/             # Modifies each resource (tests update operations)
+├── modify/             # Modifies each resource (tests update operations)
+│   ├── main.tf
+│   ├── variables.tf
+│   ├── outputs.tf
+│   └── terraform.tfvars.example
+└── import/             # Imports all resources (tests import functionality)
     ├── main.tf
     ├── variables.tf
-    ├── outputs.tf
-    └── terraform.tfvars.example
+    ├── imports.tf
+    └── terraform.tfvars
 ```
 
 ## Resources Tested
 
-| Resource Type | Create Test | Modify Test |
-|--------------|-------------|-------------|
-| `trueform_dataset` | Creates dataset with lz4 compression | Changes to gzip, increases quota |
-| `trueform_snapshot` | Creates snapshot | Creates new snapshot (immutable) |
-| `trueform_share_smb` | Creates SMB share | Enables guest access, read-only |
-| `trueform_share_nfs` | Creates NFS share with 1 network | Adds networks, sets read-only |
-| `trueform_iscsi_portal` | Creates iSCSI portal | Updates comment |
-| `trueform_iscsi_initiator` | Creates initiator with 1 IQN | Adds second IQN |
-| `trueform_iscsi_target` | Creates iSCSI target | Updates alias |
-| `trueform_iscsi_extent` | Creates 100MB file extent | Increases to 200MB |
-| `trueform_iscsi_targetextent` | Maps target to extent, LUN 0 | Changes to LUN 1 |
-| `trueform_user` | Creates test user | Enables sudo, updates email |
-| `trueform_cronjob` | Creates disabled daily cronjob | Enables, changes to hourly |
-| `trueform_static_route` | Creates static route | Updates description |
+| Resource Type | Create Test | Modify Test | Import Test |
+|--------------|-------------|-------------|-------------|
+| `trueform_pool` | Creates test pool | N/A | Imports by ID |
+| `trueform_dataset` | Creates dataset with lz4 compression | Changes to gzip, increases quota | Imports by path |
+| `trueform_snapshot` | Creates snapshot | Creates new snapshot (immutable) | Imports by full path |
+| `trueform_share_smb` | Creates SMB share | Enables guest access, read-only | Imports by ID |
+| `trueform_share_nfs` | Creates NFS share with 1 network | Adds networks, sets read-only | Imports by ID |
+| `trueform_iscsi_portal` | Creates iSCSI portal | Updates comment | Imports by ID |
+| `trueform_iscsi_initiator` | Creates initiator with 1 IQN | Adds second IQN | Imports by ID |
+| `trueform_iscsi_target` | Creates iSCSI target | Updates alias | Imports by ID |
+| `trueform_iscsi_extent` | Creates 10MB file extent | Increases to 200MB | Imports by ID |
+| `trueform_iscsi_targetextent` | Maps target to extent, LUN 0 | Changes to LUN 1 | Imports by ID |
+| `trueform_user` | Creates test user | Enables sudo, updates email | Imports by ID |
+| `trueform_cronjob` | Creates disabled daily cronjob | Enables, changes to hourly | Imports by ID |
+| `trueform_static_route` | Creates static route | Updates description | Imports by ID |
 
 ## Prerequisites
 
@@ -76,7 +82,26 @@ terraform plan    # Should show updates, not creates
 terraform apply   # Apply modifications
 ```
 
-### Step 4: Clean Up
+### Step 4: Test Imports (Alternative to Step 3)
+
+This tests the provider's ability to import existing resources into Terraform state.
+
+```bash
+cd ../import/
+# Edit terraform.tfvars with your TrueNAS connection details
+
+# Get resource IDs from create directory
+cd ../create
+terraform show | grep -E "^\s+id\s+="
+# Note all the IDs and update import/terraform.tfvars
+
+cd ../import
+terraform plan    # Should show imports, not creates
+terraform apply   # Import all resources
+terraform plan    # Should show NO changes (validates import worked correctly)
+```
+
+### Step 5: Clean Up
 
 ```bash
 terraform destroy

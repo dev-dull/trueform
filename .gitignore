@@ -11,6 +11,9 @@ test-resources/terraform.tfvars
 **/*.tfstate*
 cmd/
 
+# Built binary
+terraform-provider-trueform
+
 # GPG keys
 *.asc
 *.gpg
