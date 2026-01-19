@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -216,6 +217,10 @@ func (r *ShareNFSResource) Create(ctx context.Context, req resource.CreateReques
 		diags = plan.Security.ElementsAs(ctx, &security, false)
 		resp.Diagnostics.Append(diags...)
 		if !resp.Diagnostics.HasError() {
+			// TrueNAS API requires security values to be uppercase
+			for i, s := range security {
+				security[i] = strings.ToUpper(s)
+			}
 			createData["security"] = security
 		}
 	}
@@ -346,6 +351,10 @@ func (r *ShareNFSResource) Update(ctx context.Context, req resource.UpdateReques
 			diags = plan.Security.ElementsAs(ctx, &security, false)
 			resp.Diagnostics.Append(diags...)
 		}
+		// TrueNAS API requires security values to be uppercase
+		for i, s := range security {
+			security[i] = strings.ToUpper(s)
+		}
 		updateData["security"] = security
 	}
 	if !plan.Ro.Equal(state.Ro) {
@@ -475,7 +484,8 @@ func (r *ShareNFSResource) readShare(ctx context.Context, id int64, model *Share
 	if security, ok := result["security"].([]interface{}); ok {
 		secList := make([]string, len(security))
 		for i, s := range security {
-			secList[i] = s.(string)
+			// Normalize to lowercase for consistent state (users typically write lowercase)
+			secList[i] = strings.ToLower(s.(string))
 		}
 		secValues, diags := types.ListValueFrom(ctx, types.StringType, secList)
 		if !diags.HasError() {
