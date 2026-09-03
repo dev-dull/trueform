@@ -95,3 +95,35 @@ curl -X POST "https://<proxmox-host>:8006/api2/json/nodes/<node>/qemu/<vmid>/sna
 Or simply use the Proxmox UI: select the VM → Snapshots → `clean-install` → Rollback.
 
 After reverting, wait for TrueNAS to boot (~30–60 seconds), then run the test cycle as described in `test-resources/README.md`.
+
+### Testing Against Newer TrueNAS Releases
+
+The point of this VM is to exercise the **trueform provider** against current TrueNAS
+releases. TrueNAS updates themselves are trusted — iX tests them; validating TrueNAS
+is not the goal here. So the workflow is simply to keep an up-to-date base snapshot
+per TrueNAS version you support (a "golden") and run the provider test cycle against
+each one.
+
+Keep one golden per major version — e.g. a 25.x golden and a 26.x golden. To refresh
+a golden and test the provider against the update, per version:
+
+1. **Revert** the VM to that version's current golden snapshot (Proxmox rollback).
+2. **Apply TrueNAS updates** in the TrueNAS UI/API and let it reboot. For a beta
+   line (26, until 26.0 GA) deciding *whether* to move to the next BETA/RC/GA build
+   is a human call.
+3. **Take a new snapshot** of the updated VM with a fresh, unique name — Proxmox
+   snapshots cannot be renamed — e.g. `Updated_to_25_10_5`. This is the new golden.
+4. **Run the full test cycle** (`create → import → modify → destroy`, per
+   `test-resources/README.md`) against it. The cycle starts from the golden, so it
+   both confirms the snapshot boots and exercises the provider. A failure tied to a
+   changed TrueNAS API shape is the signal that the provider needs updating for that
+   release.
+
+Repeat for each version. The versions are independent — refreshing the 25 golden
+does not affect the 26 golden.
+
+**Housekeeping:** snapshots form a branching tree — each refresh branches from the
+golden you reverted to, so the 25 and 26 lines diverge from their common ancestor —
+and Proxmox cannot rename a snapshot or delete one that still has children. Goldens
+therefore accumulate and the chain grows over disk; periodically re-baseline from a
+fresh `clean-install` lineage to keep it bounded.

@@ -4,7 +4,7 @@
 
 # TrueForm
 
-A Terraform provider for managing TrueNAS Scale 25.04+ resources.
+A Terraform provider for managing TrueNAS Scale 25.04+ and TrueNAS 26 (beta) resources.
 
 ## About
 
@@ -16,7 +16,7 @@ The name TrueForm is taking "form" from Terraform, and "true" from TrueNAS.
 
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
 - [Go](https://golang.org/doc/install) >= 1.25 (for building from source)
-- TrueNAS Scale 25.04 or later (verified end-to-end against 25.10.3.1)
+- TrueNAS Scale 25.04+, or TrueNAS 26 (beta) — the provider detects the server version at runtime and uses the correct API for each (verified end-to-end against 25.10.4 and 26.0.0-BETA.2)
 
 ## Installation
 

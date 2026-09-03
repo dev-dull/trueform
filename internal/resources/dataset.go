@@ -498,6 +498,20 @@ func (r *DatasetResource) ImportState(ctx context.Context, req resource.ImportSt
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
+// isUnsetComment reports whether a ZFS `comments` value read from the server
+// represents "no comment" rather than a user-set string. TrueNAS signals an
+// unset/inherited comment with different sentinels across versions: "-" on
+// 25.10 and the literal "INHERIT" on 26 (a bare "" also means unset). None of
+// these should be written to state, or Read reports a value the user never set
+// and the apply fails with a "provider produced inconsistent result" error.
+//
+// Edge case: a user who genuinely sets comments to the literal "INHERIT" or "-"
+// cannot round-trip it — those strings are indistinguishable from the sentinels
+// on the wire. That is an accepted limitation of ZFS's own sentinel scheme.
+func isUnsetComment(v string) bool {
+	return v == "" || v == "-" || v == "INHERIT"
+}
+
 func (r *DatasetResource) readDataset(ctx context.Context, id string, model *DatasetResourceModel) error {
 	var result map[string]interface{}
 	err := r.client.GetInstance(ctx, "pool.dataset", id, &result)
@@ -525,17 +539,17 @@ func (r *DatasetResource) readDataset(ctx context.Context, id string, model *Dat
 	// string). Handle all three shapes.
 	if userProps, ok := result["user_properties"].(map[string]interface{}); ok {
 		if comments, ok := userProps["comments"].(map[string]interface{}); ok {
-			if value, ok := comments["value"].(string); ok && value != "-" {
+			if value, ok := comments["value"].(string); ok && !isUnsetComment(value) {
 				model.Comments = types.StringValue(value)
 			}
 		}
 	}
 	if model.Comments.IsNull() || model.Comments.IsUnknown() {
 		if comments, ok := result["comments"].(map[string]interface{}); ok {
-			if value, ok := comments["value"].(string); ok && value != "-" {
+			if value, ok := comments["value"].(string); ok && !isUnsetComment(value) {
 				model.Comments = types.StringValue(value)
 			}
-		} else if comments, ok := result["comments"].(string); ok {
+		} else if comments, ok := result["comments"].(string); ok && !isUnsetComment(comments) {
 			model.Comments = types.StringValue(comments)
 		}
 	}

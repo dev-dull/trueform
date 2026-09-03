@@ -46,6 +46,10 @@ type Client struct {
 	// Connection state
 	connected   bool
 	connectedMu sync.RWMutex
+
+	// serverMajor is the detected TrueNAS major version (e.g. 25, 26),
+	// or 0 when unknown. Set during Connect, read atomically.
+	serverMajor int64
 }
 
 // Config holds configuration for the TrueNAS client
@@ -116,6 +120,7 @@ func (c *Client) Connect(ctx context.Context) error {
 	// Connect
 	conn, _, err := dialer.DialContext(connectCtx, u.String(), http.Header{})
 	if err != nil {
+		c.connMu.Unlock()
 		return NewConnectionError(c.host, err)
 	}
 
@@ -140,7 +145,55 @@ func (c *Client) Connect(ctx context.Context) error {
 		return err
 	}
 
+	// Detect server version for API dispatch (best-effort).
+	c.detectVersion(ctx)
+
 	return nil
+}
+
+// detectVersion records the TrueNAS major version for API dispatch. Best-effort:
+// on failure serverMajor stays 0 and callers fall back to legacy (pre-26) APIs.
+func (c *Client) detectVersion(ctx context.Context) {
+	var v string
+	if err := c.Call(ctx, "system.version", []interface{}{}, &v); err != nil {
+		return
+	}
+	if major := parseMajorVersion(v); major > 0 {
+		atomic.StoreInt64(&c.serverMajor, int64(major))
+	}
+}
+
+// parseMajorVersion extracts the leading major version number from a TrueNAS
+// version string such as "TrueNAS-26.0.0-BETA.2" or "25.10.4".
+func parseMajorVersion(v string) int {
+	start := -1
+	for i := 0; i < len(v); i++ {
+		if v[i] >= '0' && v[i] <= '9' {
+			start = i
+			break
+		}
+	}
+	if start == -1 {
+		return 0
+	}
+	n := 0
+	for i := start; i < len(v) && v[i] >= '0' && v[i] <= '9'; i++ {
+		n = n*10 + int(v[i]-'0')
+	}
+	return n
+}
+
+// ServerMajorVersion returns the detected TrueNAS major version, or 0 if unknown.
+func (c *Client) ServerMajorVersion() int {
+	return int(atomic.LoadInt64(&c.serverMajor))
+}
+
+// UsesZFSResourceSnapshot reports whether the connected server uses the
+// zfs.resource.snapshot.* API (TrueNAS 26+) instead of the legacy
+// zfs.snapshot.* API (25.04–25.10). Defaults to false when the version is
+// unknown, preserving legacy behavior.
+func (c *Client) UsesZFSResourceSnapshot() bool {
+	return atomic.LoadInt64(&c.serverMajor) >= 26
 }
 
 // loginExResponse represents the response from auth.login_ex

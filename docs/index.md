@@ -6,17 +6,17 @@ description: |-
 
 <img src="https://raw.githubusercontent.com/dev-dull/terraform-provider-trueform/main/logo.svg" alt="Trueform" width="400">
 
-The Trueform provider enables Terraform to manage [TrueNAS Scale](https://www.truenas.com/truenas-scale/) resources using the WebSocket JSON-RPC API.
+The Trueform provider enables Terraform to manage [TrueNAS Scale](https://www.truenas.com/truenas-scale/) resources using the WebSocket JSON-RPC API. It supports **TrueNAS Scale 25.04+ and TrueNAS 26** (currently in beta), detecting the server version at runtime and using the correct API for each.
 
 ## Requirements
 
 - [Terraform](https://www.terraform.io/downloads.html) >= 1.0
-- [TrueNAS Scale](https://www.truenas.com/truenas-scale/) >= 25.04 (verified end-to-end against 25.10.3.1)
+- [TrueNAS Scale](https://www.truenas.com/truenas-scale/) >= 25.04, or TrueNAS 26 (beta) (verified end-to-end against 25.10.4 and 26.0.0-BETA.2)
 - A TrueNAS API key with appropriate permissions
 
 ## Import Behavior
 
-The provider supports `terraform import` for all resources. On TrueNAS 25.10+, expect a small set of fields to show as "changes" on the first apply after import — these are write-only or sensitive fields that the API does not echo back, and a single in-place update reconciles them with no resource recreation:
+The provider supports `terraform import` for all resources. On TrueNAS 25.10+ and 26, expect a small set of fields to show as "changes" on the first apply after import — these are write-only or sensitive fields that the API does not echo back, and a single in-place update reconciles them with no resource recreation:
 
 - `trueform_app.values` — user-supplied app configuration JSON
 - `trueform_user.password` — sensitive credentials

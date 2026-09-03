@@ -181,3 +181,37 @@ func TestNewClientConfig(t *testing.T) {
 		t.Error("client.responses map is nil")
 	}
 }
+
+func TestParseMajorVersion(t *testing.T) {
+	tests := []struct {
+		in   string
+		want int
+	}{
+		{"TrueNAS-26.0.0-BETA.2", 26},
+		{"25.10.4", 25},
+		{"TrueNAS-SCALE-24.04.0", 24},
+		{"TrueNAS-13.0-U6.1", 13},
+		{"", 0},
+		{"no-digits-here", 0},
+	}
+	for _, tt := range tests {
+		if got := parseMajorVersion(tt.in); got != tt.want {
+			t.Errorf("parseMajorVersion(%q) = %d, want %d", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestUsesZFSResourceSnapshot(t *testing.T) {
+	c := NewClient(&Config{Host: "h", APIKey: "k"})
+	if c.UsesZFSResourceSnapshot() {
+		t.Error("expected legacy snapshot API when version is unknown (0)")
+	}
+	c.serverMajor = 25
+	if c.UsesZFSResourceSnapshot() {
+		t.Error("expected legacy snapshot API on 25")
+	}
+	c.serverMajor = 26
+	if !c.UsesZFSResourceSnapshot() {
+		t.Error("expected zfs.resource.snapshot API on 26")
+	}
+}

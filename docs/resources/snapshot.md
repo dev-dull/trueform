@@ -11,6 +11,8 @@ Manages a ZFS snapshot on TrueNAS Scale. Snapshots provide point-in-time copies 
 
 ~> **Note:** Snapshots are immutable. Changing the `name` or `dataset` will force recreation of the snapshot.
 
+~> **TrueNAS 26:** On TrueNAS 26 the provider uses the `zfs.resource.snapshot` API, which has no snapshot-update method. Changing `properties` on an existing snapshot is therefore rejected at plan time — recreate the snapshot to change them. On TrueNAS 25.x, `properties` can be updated in place. The provider selects the correct behavior automatically based on the detected server version.
+
 ## Example Usage
 
 ### Basic Snapshot
